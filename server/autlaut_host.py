@@ -136,4 +136,17 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        # Log crash to file so we can diagnose native-host failures
+        import traceback
+        log = os.path.join(HOST_DIR, ".host-error.log")
+        with open(log, "a") as f:
+            f.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+            traceback.print_exc(file=f)
+        # Try to send an error response back to Chrome
+        try:
+            send_message({"ok": False, "error": str(exc)})
+        except Exception:
+            pass

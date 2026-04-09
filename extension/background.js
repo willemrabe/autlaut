@@ -114,7 +114,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // --- Server lifecycle (native messaging) ---
 
   if (msg.action === "start-server") {
-    KokoroStorage.getSettings().then((s) => ensureServer(s.serverUrl)).then(sendResponse);
+    KokoroStorage.getSettings().then((s) => ensureServer(s.serverUrl)).then(sendResponse).catch((err) =>
+      sendResponse({ ok: false, error: err.message })
+    );
     return true;
   }
 
@@ -128,7 +130,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "tts-prepare") {
     (async () => {
       const settings = await KokoroStorage.getSettings();
-      await ensureServer(settings.serverUrl);
+      const server = await ensureServer(settings.serverUrl);
+      if (!server.ok) throw new Error(server.error || "Server failed to start");
       return ttsPrepare(msg);
     })().then(sendResponse).catch((err) =>
       sendResponse({ error: err.message })
@@ -146,7 +149,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "tts-preview") {
     (async () => {
       const settings = await KokoroStorage.getSettings();
-      await ensureServer(settings.serverUrl);
+      const server = await ensureServer(settings.serverUrl);
+      if (!server.ok) throw new Error(server.error || "Server failed to start");
       return ttsPreview(msg);
     })().then(sendResponse).catch((err) =>
       sendResponse({ error: err.message })

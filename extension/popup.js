@@ -190,12 +190,14 @@ document.getElementById("server-toggle").addEventListener("click", async () => {
     } else {
       const errorMsg = result?.error || "Could not start server";
       // Check if native messaging host not installed
-      if (errorMsg.includes("not found") || errorMsg.includes("native messaging host")) {
+      if (errorMsg.includes("not found") || errorMsg.includes("native messaging host") || errorMsg.includes("forbidden")) {
         label.textContent = "Not set up";
         btn.title = "Run install_host.sh first — see README";
+        showStatus("Native host not found — run install_host.sh with your extension ID", "error");
       } else {
         label.textContent = "Error";
         btn.title = errorMsg;
+        showStatus(errorMsg, "error");
       }
       btn.className = "server-toggle offline";
       setTimeout(() => checkServer(), 3000);
@@ -307,5 +309,5 @@ function showStatus(msg, type = "success") {
   const status = document.getElementById("settings-status");
   status.textContent = msg;
   status.className = `status-msg${type === "error" ? " error" : ""}`;
-  setTimeout(() => (status.textContent = ""), 2000);
+  setTimeout(() => (status.textContent = ""), type === "error" ? 5000 : 2000);
 }
