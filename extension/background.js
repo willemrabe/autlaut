@@ -55,6 +55,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.action === "save-setting") {
+    KokoroStorage.getSettings().then((settings) => {
+      settings[msg.key] = msg.value;
+      return KokoroStorage.saveSettings(settings);
+    }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
   if (msg.action === "check-server") {
     checkServer(msg.url).then(sendResponse);
     return true;
@@ -114,6 +122,7 @@ async function ttsPrepare(msg) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: msg.text }),
+    signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return await resp.json();
@@ -130,6 +139,7 @@ async function ttsChunk(msg) {
       speed: settings.speed,
       index: msg.index,
     }),
+    signal: AbortSignal.timeout(60000),
   });
   if (!resp.ok) throw new Error(`Chunk ${msg.index} failed: ${resp.status}`);
 
@@ -157,6 +167,7 @@ async function ttsPreview(msg) {
       speed: msg.speed,
       index: 0,
     }),
+    signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) throw new Error(`Preview failed: ${resp.status}`);
 

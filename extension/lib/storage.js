@@ -10,7 +10,17 @@ const KokoroStorage = {
     history.unshift(entry);
     // Keep last 200 entries
     if (history.length > 200) history.length = 200;
-    await chrome.storage.local.set({ history });
+    try {
+      await chrome.storage.local.set({ history });
+    } catch (err) {
+      // Storage quota exceeded — trim to half and retry
+      if (history.length > 10) {
+        history.length = Math.floor(history.length / 2);
+        await chrome.storage.local.set({ history });
+      } else {
+        throw err;
+      }
+    }
   },
 
   async removeEntry(id) {

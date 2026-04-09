@@ -167,6 +167,7 @@
     if (!selectedText) return;
     cancelGeneration = false;
     setFABLoading(true);
+    let audioBlobUrl = null;
 
     try {
       const settings = await chrome.runtime.sendMessage({ action: "get-settings" });
@@ -245,7 +246,7 @@
       }
 
       const fullBlob = buildWAV(pcmParts, SAMPLE_RATE);
-      const audioBlobUrl = URL.createObjectURL(fullBlob);
+      audioBlobUrl = URL.createObjectURL(fullBlob);
 
       // Store blob for on-demand download (no auto-download)
       const timestamp = Date.now();
@@ -267,6 +268,8 @@
 
     } catch (err) {
       hideProgress();
+      // Clean up any blob URL created before the error
+      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
       if (!cancelGeneration) showError(err.message || "Failed to connect to TTS server");
     } finally {
       setFABLoading(false);
@@ -386,7 +389,7 @@
       // Try whitespace-normalized match
       const normalizedChunk = cleanChunk.replace(/\s+/g, " ");
       const normIdx = normalizedFull.indexOf(normalizedChunk, Math.max(0, searchStart - 50));
-      if (normIdx >= 0) { searchStart = normIdx + normalizedChunk.length; return { start: normIdx, end: normIdx + cleanChunk.length }; }
+      if (normIdx >= 0) { searchStart = normIdx + normalizedChunk.length; return { start: normIdx, end: normIdx + normalizedChunk.length }; }
       const prefix = cleanChunk.slice(0, 40);
       const fuzzyIdx = fullText.indexOf(prefix, Math.max(0, searchStart - 50));
       if (fuzzyIdx >= 0) { searchStart = fuzzyIdx + cleanChunk.length; return { start: fuzzyIdx, end: fuzzyIdx + cleanChunk.length }; }
@@ -458,10 +461,16 @@
   }
 
   function clearHighlights() {
+    const parents = new Set();
     highlightSpans.forEach((span) => {
       const parent = span.parentNode;
-      if (parent) { while (span.firstChild) parent.insertBefore(span.firstChild, span); parent.removeChild(span); parent.normalize(); }
+      if (parent) {
+        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+        parent.removeChild(span);
+        parents.add(parent);
+      }
     });
+    parents.forEach((p) => p.normalize());
     highlightSpans = [];
     currentChunkMap = [];
   }
@@ -540,10 +549,8 @@
       if (audio) audio.volume = volumeLevel;
       updateVolumeIcon();
       clearTimeout(volumeSaveTimer);
-      volumeSaveTimer = setTimeout(async () => {
-        const settings = await chrome.runtime.sendMessage({ action: "get-settings" });
-        settings.volume = volumeLevel;
-        chrome.runtime.sendMessage({ action: "save-settings", settings });
+      volumeSaveTimer = setTimeout(() => {
+        chrome.runtime.sendMessage({ action: "save-setting", key: "volume", value: volumeLevel });
       }, 300);
     });
     player.querySelector("#kokoro-help-btn").addEventListener("click", (e) => {
@@ -619,13 +626,11 @@
     audio.currentTime = ratio * audio.duration;
   }
 
-  async function cycleSpeed() {
+  function cycleSpeed() {
     speedIndex = (speedIndex + 1) % SPEEDS.length;
     if (audio) audio.playbackRate = SPEEDS[speedIndex];
     player.querySelector("#kokoro-speed-btn").textContent = `${SPEEDS[speedIndex]}x`;
-    const settings = await chrome.runtime.sendMessage({ action: "get-settings" });
-    settings.playbackSpeed = SPEEDS[speedIndex];
-    chrome.runtime.sendMessage({ action: "save-settings", settings });
+    chrome.runtime.sendMessage({ action: "save-setting", key: "playbackSpeed", value: SPEEDS[speedIndex] });
   }
 
   function updateVolumeIcon() {
@@ -658,7 +663,17 @@
       audio = null;
       if (src.startsWith("blob:")) URL.revokeObjectURL(src);
     }
-    if (player) { player.classList.remove("visible"); setTimeout(() => { player?.remove(); player = null; }, 300); }
+    if (player) {
+      const closingPlayer = player;
+      player = null;
+      closingPlayer.classList.remove("visible");
+      setTimeout(() => closingPlayer.remove(), 300);
+    }
+    // Clean up any in-progress seek listeners on document
+    document.removeEventListener("mousemove", onSeekMove);
+    document.removeEventListener("mouseup", onSeekEnd);
+    isSeeking = false;
+    clearTimeout(volumeSaveTimer);
     currentBlob = null;
     currentFilename = "";
     clearHighlights();
