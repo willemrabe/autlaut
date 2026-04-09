@@ -155,7 +155,7 @@ async function loadHistory() {
         <span>${formatDate(entry.createdAt)}</span>
         <span>${entry.voice || "af_heart"}</span>
       </div>
-      <button class="delete-btn" data-id="${entry.id}" title="Remove">&#x2715;</button>
+      <button class="delete-btn" data-id="${escapeHtml(entry.id)}" title="Remove">&#x2715;</button>
     `;
 
     item.addEventListener("click", (e) => {

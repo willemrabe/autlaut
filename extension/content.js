@@ -69,11 +69,17 @@
     setTimeout(() => {
       const sel = window.getSelection();
       const text = sel?.toString().trim();
-      if (text && text.length > 2) {
+      if (text && text.length > 2 && sel.rangeCount > 0) {
         selectedText = text;
-        try { selectedRange = sel.getRangeAt(0).cloneRange(); } catch { selectedRange = null; }
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        showFAB(rect.left + rect.width / 2 + window.scrollX, rect.top + window.scrollY);
+        try {
+          const range = sel.getRangeAt(0);
+          selectedRange = range.cloneRange();
+          const rect = range.getBoundingClientRect();
+          showFAB(rect.left + rect.width / 2 + window.scrollX, rect.top + window.scrollY);
+        } catch {
+          selectedRange = null;
+          hideFAB();
+        }
       } else {
         hideFAB();
       }
@@ -370,9 +376,11 @@
       return ranges;
     }
 
+    // Build node ranges once, not per chunk
+    let nodeRanges = buildNodeRanges();
+
     chunkPositions.forEach((pos, chunkIdx) => {
       if (!pos) return;
-      const nodeRanges = buildNodeRanges();
       for (const nr of nodeRanges) {
         const overlapStart = Math.max(pos.start, nr.start);
         const overlapEnd = Math.min(pos.end, nr.end);
@@ -386,6 +394,8 @@
           span.dataset.chunkIdx = chunkIdx;
           range.surroundContents(span);
           highlightSpans.push(span);
+          // Rebuild after DOM mutation from surroundContents
+          nodeRanges = buildNodeRanges();
         } catch { /* cross-element boundary */ }
         break;
       }
@@ -407,7 +417,7 @@
       if (currentTime >= currentChunkMap[i].start && currentTime < currentChunkMap[i].end) { activeIdx = i; break; }
     }
     highlightSpans.forEach((span) => {
-      const idx = parseInt(span.dataset.chunkIdx);
+      const idx = parseInt(span.dataset.chunkIdx, 10);
       span.classList.toggle("kokoro-active", idx === activeIdx);
       span.classList.toggle("kokoro-played", idx < activeIdx);
     });
@@ -450,7 +460,12 @@
   }
 
   function playAudio(blobUrl, chunkMap) {
-    if (audio) { audio.pause(); audio.src = ""; }
+    if (audio) {
+      const oldSrc = audio.src;
+      audio.pause();
+      audio.src = "";
+      if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
+    }
     audio = new Audio(blobUrl);
     currentChunkMap = chunkMap;
     createPlayer();

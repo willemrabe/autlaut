@@ -90,6 +90,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 async function checkServer(url) {
   try {
     const resp = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!resp.ok) return { ok: false };
     const data = await resp.json();
     return { ok: data.status === "ok" };
   } catch {
@@ -100,6 +101,7 @@ async function checkServer(url) {
 async function fetchVoices(url) {
   try {
     const resp = await fetch(`${url}/voices`, { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) return { voices: [] };
     return await resp.json();
   } catch {
     return { voices: [] };

@@ -115,6 +115,8 @@ def tts_chunk(req: ChunkRequest):
     """Generate audio for a single text chunk. Returns WAV + duration metadata."""
     if not req.text.strip():
         raise HTTPException(400, "Text is empty")
+    if req.voice not in VOICES:
+        raise HTTPException(400, f"Unknown voice: {req.voice}")
 
     pipeline = get_pipeline()
     audio_parts = []
@@ -147,6 +149,8 @@ def tts(req: TTSRequest):
     """Generate audio for full text (kept for short texts / backward compat)."""
     if not req.text.strip():
         raise HTTPException(400, "Text is empty")
+    if req.voice not in VOICES:
+        raise HTTPException(400, f"Unknown voice: {req.voice}")
 
     pipeline = get_pipeline()
     chunks = chunk_text(req.text)
