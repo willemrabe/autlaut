@@ -58,11 +58,30 @@ async function loadSettings() {
     btn.disabled = true;
     btn.textContent = "Saving...";
     try {
+      const serverUrl = document.getElementById("server-url").value.trim().replace(/\/+$/, "");
+      if (!/^https?:\/\/.+/.test(serverUrl)) {
+        showStatus("Invalid server URL", "error");
+        return;
+      }
+      const speed = parseFloat(document.getElementById("speed-range").value);
+      if (isNaN(speed) || speed < 0.5 || speed > 2) {
+        showStatus("Speed must be between 0.5 and 2", "error");
+        return;
+      }
       const newSettings = {
-        serverUrl: document.getElementById("server-url").value.replace(/\/+$/, ""),
+        serverUrl,
         voice: document.getElementById("voice-select").value,
-        speed: parseFloat(document.getElementById("speed-range").value),
+        speed,
       };
+      // Request host permission for non-localhost servers
+      if (!/^https?:\/\/localhost[:/]/.test(serverUrl)) {
+        const origin = new URL(serverUrl).origin + "/*";
+        const granted = await chrome.permissions.request({ origins: [origin] });
+        if (!granted) {
+          showStatus("Host permission denied — cannot reach server", "error");
+          return;
+        }
+      }
       await sendMessage({ action: "save-settings", settings: newSettings });
       showStatus("Settings saved");
       checkServer();
@@ -104,6 +123,7 @@ async function previewVoice() {
 
     if (result.error) {
       statusEl.textContent = `Error: ${result.error}`;
+      btn.classList.remove("loading");
       return;
     }
 
