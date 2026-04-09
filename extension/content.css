@@ -35,6 +35,11 @@
   transform: scale(0.95);
 }
 
+#kokoro-fab:focus-visible {
+  outline: 2px solid #ff6b4a;
+  outline-offset: 2px;
+}
+
 #kokoro-fab svg {
   width: 20px;
   height: 20px;
@@ -59,7 +64,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 2147483646;
+  z-index: 2147483645;
   background: #1a1a2e;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -80,7 +85,7 @@
 #kokoro-progress-wrap {
   width: 100%;
   height: 4px;
-  background: #333;
+  background: #2a2a45;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -123,6 +128,11 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+#kokoro-controls button:focus-visible {
+  outline: 2px solid #ff6b4a;
+  outline-offset: 2px;
+}
+
 #kokoro-controls button svg {
   width: 18px;
   height: 18px;
@@ -145,11 +155,11 @@
   font-size: 12px;
 }
 
-#kokoro-speed-btn {
-  font-size: 11px !important;
-  color: #aaa !important;
-  min-width: 40px !important;
-  width: auto !important;
+#kokoro-controls #kokoro-speed-btn {
+  font-size: 11px;
+  color: #aaa;
+  min-width: 40px;
+  width: auto;
 }
 
 /* Chunk highlighting */
@@ -172,7 +182,7 @@
   position: fixed;
   bottom: 16px;
   right: 16px;
-  z-index: 2147483647;
+  z-index: 2147483646;
   background: #1a1a2e;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -201,7 +211,7 @@
 .kokoro-prog-bar-wrap {
   width: 100%;
   height: 6px;
-  background: #333;
+  background: #2a2a45;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -222,7 +232,7 @@
 
 .kokoro-prog-cancel {
   background: none;
-  border: 1px solid #555;
+  border: 1px solid #2a2a45;
   color: #aaa;
   padding: 5px 12px;
   border-radius: 6px;
@@ -235,4 +245,9 @@
 .kokoro-prog-cancel:hover {
   border-color: #d32f2f;
   color: #d32f2f;
+}
+
+.kokoro-prog-cancel:focus-visible {
+  outline: 2px solid #ff6b4a;
+  outline-offset: 2px;
 }
