@@ -194,21 +194,23 @@
       const SAMPLE_RATE = 24000;
       const silenceBlob = createSilenceWAV(SILENCE_DURATION, SAMPLE_RATE);
 
-      const allParts = [];
+      const pcmParts = [];
       const chunkMap = [];
       let currentTime = 0;
+      const silencePCM = await extractPCM(silenceBlob);
 
       for (const r of results) {
         if (!r) continue;
-        allParts.push(r.blob);
+        const pcm = await extractPCM(r.blob);
+        pcmParts.push(pcm);
         chunkMap.push({ start: currentTime, end: currentTime + r.duration, text: r.text });
         currentTime += r.duration;
         // Add silence between chunks
-        allParts.push(silenceBlob);
+        pcmParts.push(silencePCM);
         currentTime += SILENCE_DURATION;
       }
 
-      const fullBlob = new Blob(allParts, { type: "audio/wav" });
+      const fullBlob = buildWAV(pcmParts, SAMPLE_RATE);
       const audioBlobUrl = URL.createObjectURL(fullBlob);
 
       // Save file
@@ -257,6 +259,41 @@
     writeStr(36, "data");
     view.setUint32(40, numSamples * 2, true);
     // samples are already zero (silence)
+    return new Blob([buffer], { type: "audio/wav" });
+  }
+
+  /** Extract raw PCM data from a WAV blob (skip 44-byte header) */
+  async function extractPCM(blob) {
+    const buf = await blob.arrayBuffer();
+    return new Uint8Array(buf, 44);
+  }
+
+  /** Build a single valid WAV file from an array of PCM Uint8Arrays */
+  function buildWAV(pcmParts, sampleRate) {
+    let totalBytes = 0;
+    for (const p of pcmParts) totalBytes += p.byteLength;
+    const buffer = new ArrayBuffer(44 + totalBytes);
+    const view = new DataView(buffer);
+    const writeStr = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+    writeStr(0, "RIFF");
+    view.setUint32(4, 36 + totalBytes, true);
+    writeStr(8, "WAVE");
+    writeStr(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, "data");
+    view.setUint32(40, totalBytes, true);
+    const out = new Uint8Array(buffer, 44);
+    let offset = 0;
+    for (const p of pcmParts) {
+      out.set(p, offset);
+      offset += p.byteLength;
+    }
     return new Blob([buffer], { type: "audio/wav" });
   }
 
