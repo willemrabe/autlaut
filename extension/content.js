@@ -8,6 +8,7 @@
     loading: `<svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6 6 6 0 0 1-6-6H4a8 8 0 0 0 8 8 8 8 0 0 0 8-8 8 8 0 0 0-8-8z"/></svg>`,
     back10: `<svg viewBox="0 0 24 24"><path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="10" y="16" font-size="7" fill="white" text-anchor="middle" font-family="sans-serif">10</text></svg>`,
     fwd10: `<svg viewBox="0 0 24 24"><path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="14" y="16" font-size="7" fill="white" text-anchor="middle" font-family="sans-serif">10</text></svg>`,
+    download: `<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`,
   };
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -23,6 +24,8 @@
   let selectedRange = null;
   let speedIndex = 2;
   let cancelGeneration = false;
+  let currentBlob = null;
+  let currentFilename = "";
 
   // ── Floating Action Button ──
 
@@ -32,6 +35,7 @@
     fab.id = "kokoro-fab";
     fab.innerHTML = ICONS.speaker;
     fab.title = "Read with Autlaut";
+    fab.setAttribute("aria-label", "Read aloud with Autlaut");
     fab.addEventListener("click", onFABClick);
     document.body.appendChild(fab);
     return fab;
@@ -113,7 +117,7 @@
         <div class="kokoro-prog-inner">
           <div class="kokoro-prog-bar-wrap"><div class="kokoro-prog-bar-fill"></div></div>
           <div class="kokoro-prog-text"></div>
-          <button class="kokoro-prog-cancel">Cancel</button>
+          <button class="kokoro-prog-cancel" aria-label="Cancel generation">Cancel</button>
         </div>
       `;
       progressOverlay.querySelector(".kokoro-prog-cancel").addEventListener("click", () => {
@@ -222,17 +226,17 @@
       const fullBlob = buildWAV(pcmParts, SAMPLE_RATE);
       const audioBlobUrl = URL.createObjectURL(fullBlob);
 
-      // Save file
+      // Store blob for on-demand download (no auto-download)
       const timestamp = Date.now();
       const domain = location.hostname.replace(/\./g, "_");
-      const filename = `KokoroTTS_${timestamp}_${domain}.wav`;
-      saveBlob(fullBlob, filename);
+      currentFilename = `Autlaut_${timestamp}_${domain}.wav`;
+      currentBlob = fullBlob;
 
       // Save history (lightweight)
       chrome.runtime.sendMessage({
         action: "save-history",
         chunkMap, text: selectedText,
-        voice: settings.voice, speed: settings.speed, filename,
+        voice: settings.voice, speed: settings.speed, filename: currentFilename,
       });
 
       hideProgress();
@@ -441,13 +445,14 @@
     player.innerHTML = `
       <div id="kokoro-progress-wrap"><div id="kokoro-progress-bar"></div></div>
       <div id="kokoro-controls">
-        <button id="kokoro-back" title="Back 10s">${ICONS.back10}</button>
-        <button id="kokoro-play-pause" title="Play/Pause">${ICONS.pause}</button>
-        <button id="kokoro-fwd" title="Forward 10s">${ICONS.fwd10}</button>
+        <button id="kokoro-back" title="Back 10s" aria-label="Back 10 seconds">${ICONS.back10}</button>
+        <button id="kokoro-play-pause" title="Play/Pause" aria-label="Play or pause">${ICONS.pause}</button>
+        <button id="kokoro-fwd" title="Forward 10s" aria-label="Forward 10 seconds">${ICONS.fwd10}</button>
         <span id="kokoro-time">0:00 / 0:00</span>
         <span id="kokoro-title"></span>
-        <button id="kokoro-speed-btn" title="Playback speed">1x</button>
-        <button id="kokoro-close" title="Close">${ICONS.close}</button>
+        <button id="kokoro-download" title="Download audio" aria-label="Download audio">${ICONS.download}</button>
+        <button id="kokoro-speed-btn" title="Playback speed" aria-label="Playback speed">1x</button>
+        <button id="kokoro-close" title="Close" aria-label="Close player">${ICONS.close}</button>
       </div>`;
     document.body.appendChild(player);
     player.querySelector("#kokoro-play-pause").addEventListener("click", togglePlayPause);
@@ -456,6 +461,9 @@
     player.querySelector("#kokoro-speed-btn").addEventListener("click", cycleSpeed);
     player.querySelector("#kokoro-close").addEventListener("click", closePlayer);
     player.querySelector("#kokoro-progress-wrap").addEventListener("click", seekToClick);
+    player.querySelector("#kokoro-download").addEventListener("click", () => {
+      if (currentBlob) saveBlob(currentBlob, currentFilename);
+    });
     return player;
   }
 
@@ -526,6 +534,8 @@
       if (src.startsWith("blob:")) URL.revokeObjectURL(src);
     }
     if (player) { player.classList.remove("visible"); setTimeout(() => { player?.remove(); player = null; }, 300); }
+    currentBlob = null;
+    currentFilename = "";
     clearHighlights();
   }
 

@@ -49,16 +49,24 @@ async function loadSettings() {
 
   // Save
   document.getElementById("save-settings-btn").addEventListener("click", async () => {
-    const newSettings = {
-      serverUrl: document.getElementById("server-url").value.replace(/\/+$/, ""),
-      voice: document.getElementById("voice-select").value,
-      speed: parseFloat(document.getElementById("speed-range").value),
-    };
-    await sendMessage({ action: "save-settings", settings: newSettings });
-    const status = document.getElementById("settings-status");
-    status.textContent = "Settings saved";
-    setTimeout(() => (status.textContent = ""), 2000);
-    checkServer();
+    const btn = document.getElementById("save-settings-btn");
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+    try {
+      const newSettings = {
+        serverUrl: document.getElementById("server-url").value.replace(/\/+$/, ""),
+        voice: document.getElementById("voice-select").value,
+        speed: parseFloat(document.getElementById("speed-range").value),
+      };
+      await sendMessage({ action: "save-settings", settings: newSettings });
+      showStatus("Settings saved");
+      checkServer();
+    } catch {
+      showStatus("Failed to save settings", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Save Settings";
+    }
   });
 }
 
@@ -120,9 +128,11 @@ async function checkServer() {
   if (result.ok) {
     dot.className = "dot online";
     dot.title = "Server online";
+    dot.setAttribute("aria-label", "Server status: online");
   } else {
     dot.className = "dot offline";
     dot.title = "Server offline — start the TTS server";
+    dot.setAttribute("aria-label", "Server status: offline");
   }
 }
 
@@ -155,7 +165,7 @@ async function loadHistory() {
         <span>${formatDate(entry.createdAt)}</span>
         <span>${entry.voice || "af_heart"}</span>
       </div>
-      <button class="delete-btn" data-id="${escapeHtml(entry.id)}" title="Remove">&#x2715;</button>
+      <button class="delete-btn" data-id="${escapeHtml(entry.id)}" title="Remove" aria-label="Remove from history">&#x2715;</button>
     `;
 
     item.addEventListener("click", (e) => {
@@ -203,4 +213,11 @@ function formatDate(iso) {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function showStatus(msg, type = "success") {
+  const status = document.getElementById("settings-status");
+  status.textContent = msg;
+  status.className = `status-msg${type === "error" ? " error" : ""}`;
+  setTimeout(() => (status.textContent = ""), 2000);
 }

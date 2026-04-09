@@ -10,15 +10,15 @@ body {
   min-height: 400px;
   max-height: 520px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: #111;
+  background: #16162b;
   color: #e0e0e0;
   overflow-y: auto;
 }
 
 header {
   padding: 14px 16px 0;
-  border-bottom: 1px solid #222;
-  background: #111;
+  border-bottom: 1px solid #2a2a45;
+  background: #16162b;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -51,7 +51,7 @@ h1 {
 }
 
 .dot.offline {
-  background: #666;
+  background: #999;
 }
 
 nav {
@@ -65,7 +65,7 @@ nav .tab {
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #888;
+  color: #999;
   font-size: 13px;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
@@ -90,6 +90,26 @@ main {
 
 .tab-content.active {
   display: block;
+}
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #ff6b4a;
+  outline-offset: 2px;
 }
 
 /* History */
@@ -125,7 +145,7 @@ main {
 
 .history-item .snippet {
   font-size: 11px;
-  color: #888;
+  color: #999;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -135,7 +155,7 @@ main {
 
 .history-item .meta {
   font-size: 10px;
-  color: #555;
+  color: #999;
   margin-top: 4px;
   display: flex;
   gap: 8px;
@@ -147,7 +167,7 @@ main {
   right: 8px;
   background: none;
   border: none;
-  color: #555;
+  color: #888;
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
@@ -163,7 +183,7 @@ main {
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #666;
+  color: #999;
 }
 
 .empty-state p {
@@ -172,10 +192,16 @@ main {
 
 .empty-state .hint {
   font-size: 12px;
-  color: #555;
+  color: #888;
 }
 
 /* Settings */
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
 .setting-group {
   margin-bottom: 16px;
 }
@@ -183,7 +209,7 @@ main {
 .setting-group label {
   display: block;
   font-size: 12px;
-  color: #888;
+  color: #999;
   margin-bottom: 6px;
 }
 
@@ -192,7 +218,7 @@ main {
   width: 100%;
   padding: 8px 10px;
   background: #1a1a2e;
-  border: 1px solid #333;
+  border: 1px solid #2a2a45;
   border-radius: 6px;
   color: #e0e0e0;
   font-size: 13px;
@@ -221,11 +247,12 @@ main {
 
 .icon-btn {
   background: #1a1a2e;
-  border: 1px solid #333;
+  border: 1px solid #2a2a45;
   color: #ccc;
   cursor: pointer;
-  padding: 7px 8px;
+  padding: 10px;
   border-radius: 6px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +272,7 @@ main {
 
 .preview-status {
   font-size: 11px;
-  color: #888;
+  color: #999;
   min-height: 16px;
   margin-top: 4px;
 }
@@ -260,21 +287,26 @@ main {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, opacity 0.15s;
 }
 
 .primary-btn:hover {
   background: #e55a3a;
 }
 
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .danger-btn {
   width: 100%;
-  padding: 8px;
+  padding: 10px;
   background: none;
   color: #d32f2f;
   border: 1px solid #d32f2f33;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   margin-top: 12px;
   transition: background 0.15s;
@@ -290,4 +322,8 @@ main {
   text-align: center;
   color: #4caf50;
   min-height: 16px;
+}
+
+.status-msg.error {
+  color: #d32f2f;
 }
