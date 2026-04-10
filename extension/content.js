@@ -72,14 +72,30 @@
     if (fab) fab.classList.remove("visible");
   }
 
+  let fabLoader = null;
+
   function setFABLoading(loading) {
     if (!fab) return;
     if (loading) {
       fab.classList.add("loading");
-      fab.innerHTML = ICONS.loading;
+      if (!fabLoader) {
+        fabLoader = document.createElement("div");
+        fabLoader.className = "kokoro-fab-loader";
+        const pills = Array.from({length: 8}, () => '<div class="kokoro-fab-loader-pill"></div>').join("");
+        fabLoader.innerHTML = `<div class="kokoro-fab-loader-ring">${pills}</div>`;
+        document.body.appendChild(fabLoader);
+      }
+      // Position exactly over the FAB for a seamless swap
+      fabLoader.style.left = fab.style.left;
+      fabLoader.style.top = fab.style.top;
+      requestAnimationFrame(() => fabLoader.classList.add("visible"));
     } else {
       fab.classList.remove("loading");
       fab.innerHTML = ICONS.speaker;
+      if (fabLoader) {
+        fabLoader.classList.remove("visible");
+        setTimeout(() => { fabLoader?.remove(); fabLoader = null; }, 200);
+      }
     }
   }
 
@@ -127,6 +143,10 @@
 
   // ── Progress Overlay ──
 
+  let genStartTime = 0;
+  let wordsConverted = 0;
+  let audioDuration = 0;
+
   function showProgress(done, total, status) {
     if (!progressOverlay) {
       progressOverlay = document.createElement("div");
@@ -143,6 +163,7 @@
           <div class="kokoro-prog-visualizer">${vizBars}</div>
           <div class="kokoro-prog-bar-wrap"><div class="kokoro-prog-bar-fill"></div></div>
           <div class="kokoro-prog-text"></div>
+          <div class="kokoro-prog-stats"></div>
           <button class="kokoro-prog-cancel" aria-label="Cancel generation">Cancel</button>
         </div>
       `;
@@ -157,6 +178,20 @@
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     progressOverlay.querySelector(".kokoro-prog-bar-fill").style.width = `${pct}%`;
     progressOverlay.querySelector(".kokoro-prog-text").textContent = status || `Processing chunk ${done} / ${total}`;
+
+    // Stats line
+    const statsEl = progressOverlay.querySelector(".kokoro-prog-stats");
+    if (done > 0 && genStartTime > 0) {
+      const elapsed = (Date.now() - genStartTime) / 1000;
+      const audioStr = audioDuration >= 60
+        ? `${Math.floor(audioDuration / 60)}m ${Math.round(audioDuration % 60)}s`
+        : `${Math.round(audioDuration)}s`;
+      const wps = elapsed > 0 ? (wordsConverted / elapsed).toFixed(1) : "0";
+      statsEl.textContent = `${wordsConverted} words \u00b7 ${audioStr} audio \u00b7 ${wps} words/sec`;
+    } else {
+      statsEl.textContent = "";
+    }
+
     progressOverlay.classList.add("visible");
   }
 
@@ -198,11 +233,15 @@
       if (settings.volume != null) volumeLevel = settings.volume;
 
       // Step 1: Ask background to chunk the text (background handles fetch to avoid CORS)
+      genStartTime = 0;
+      wordsConverted = 0;
+      audioDuration = 0;
       showProgress(0, 0, "Preparing text...");
       const prepResult = await chrome.runtime.sendMessage({ action: "tts-prepare", text: selectedText });
       if (prepResult.error) throw new Error(prepResult.error);
       const { chunks, total } = prepResult;
 
+      genStartTime = Date.now();
       showProgress(0, total, `0 / ${total} chunks`);
 
       // Step 2: Fetch chunks in parallel via background service worker
@@ -225,6 +264,8 @@
           const blob = await resp.blob();
           results[idx] = { blob, duration: result.duration, text: chunks[idx] };
           completed++;
+          wordsConverted += chunks[idx].split(/\s+/).length;
+          audioDuration += result.duration || 0;
           showProgress(completed, total, `${completed} / ${total} chunks`);
         }
       }

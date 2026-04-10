@@ -19,19 +19,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSettings();
   document.getElementById("settings-form").style.opacity = "";
   await loadHistory();
-  await checkServer();
+  await checkModel();
+});
+
+// Listen for model progress updates
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === "model-progress" && msg.progress) {
+    const btn = document.getElementById("model-toggle");
+    const label = btn.querySelector(".server-label");
+    if (msg.progress.status === "progress" && msg.progress.total) {
+      const pct = Math.round((msg.progress.loaded / msg.progress.total) * 100);
+      label.textContent = `${pct}%`;
+    } else if (msg.progress.status === "done") {
+      label.textContent = "Loading...";
+    }
+  }
 });
 
 // --- Settings ---
 
 async function loadSettings() {
   const settings = await sendMessage({ action: "get-settings" });
-  document.getElementById("server-url").value = settings.serverUrl;
   document.getElementById("speed-range").value = settings.speed;
   document.getElementById("speed-value").textContent = `${settings.speed}x`;
+  document.getElementById("workers-select").value = String(settings.workers || 2);
 
   // Load voices
-  const voiceData = await sendMessage({ action: "get-voices", url: settings.serverUrl });
+  const voiceData = await sendMessage({ action: "get-voices" });
   const select = document.getElementById("voice-select");
   if (voiceData.voices && voiceData.voices.length > 0) {
     select.innerHTML = "";
@@ -58,33 +72,19 @@ async function loadSettings() {
     btn.disabled = true;
     btn.textContent = "Saving...";
     try {
-      const serverUrl = document.getElementById("server-url").value.trim().replace(/\/+$/, "");
-      if (!/^https?:\/\/.+/.test(serverUrl)) {
-        showStatus("Invalid server URL", "error");
-        return;
-      }
       const speed = parseFloat(document.getElementById("speed-range").value);
       if (isNaN(speed) || speed < 0.5 || speed > 2) {
         showStatus("Speed must be between 0.5 and 2", "error");
         return;
       }
+      const workers = parseInt(document.getElementById("workers-select").value, 10);
       const newSettings = {
-        serverUrl,
         voice: document.getElementById("voice-select").value,
         speed,
+        workers,
       };
-      // Request host permission for non-localhost servers
-      if (!/^https?:\/\/localhost[:/]/.test(serverUrl)) {
-        const origin = new URL(serverUrl).origin + "/*";
-        const granted = await chrome.permissions.request({ origins: [origin] });
-        if (!granted) {
-          showStatus("Host permission denied — cannot reach server", "error");
-          return;
-        }
-      }
       await sendMessage({ action: "save-settings", settings: newSettings });
       showStatus("Settings saved");
-      checkServer();
     } catch {
       showStatus("Failed to save settings", "error");
     } finally {
@@ -144,64 +144,73 @@ async function previewVoice() {
   }
 }
 
-// --- Server Toggle ---
+// --- Model Toggle ---
 
-let serverOnline = false;
+let modelReady = false;
 
-async function checkServer() {
-  const settings = await sendMessage({ action: "get-settings" });
-  const result = await sendMessage({ action: "check-server", url: settings.serverUrl });
-  const btn = document.getElementById("server-toggle");
+async function checkModel() {
+  const result = await sendMessage({ action: "model-status" });
+  const btn = document.getElementById("model-toggle");
   const label = btn.querySelector(".server-label");
 
-  serverOnline = result.ok;
+  modelReady = result.ok;
   if (result.ok) {
     btn.className = "server-toggle online";
-    btn.title = "Server online — click to stop";
-    btn.setAttribute("aria-label", "Server online — click to stop");
-    label.textContent = "Online";
+    btn.title = "Model loaded and ready";
+    btn.setAttribute("aria-label", "Model loaded and ready");
+    label.textContent = "Ready";
+  } else if (result.loading) {
+    btn.className = "server-toggle starting";
+    btn.title = "Model loading...";
+    btn.setAttribute("aria-label", "Model loading");
+    label.textContent = "Loading...";
   } else {
     btn.className = "server-toggle offline";
-    btn.title = "Server offline — click to start";
-    btn.setAttribute("aria-label", "Server offline — click to start");
-    label.textContent = "Offline";
+    btn.title = "Click to download and load model (~88 MB)";
+    btn.setAttribute("aria-label", "Model not loaded — click to download");
+    label.textContent = "Not loaded";
   }
 }
 
-document.getElementById("server-toggle").addEventListener("click", async () => {
-  const btn = document.getElementById("server-toggle");
+document.getElementById("model-toggle").addEventListener("click", async () => {
+  if (modelReady) return; // Already loaded, nothing to do
+
+  const btn = document.getElementById("model-toggle");
   const label = btn.querySelector(".server-label");
 
-  if (serverOnline) {
-    // Stop
-    label.textContent = "Stopping...";
-    btn.className = "server-toggle starting";
-    await sendMessage({ action: "stop-server" });
-    // Brief delay before re-checking
-    await new Promise((r) => setTimeout(r, 500));
-    await checkServer();
-  } else {
-    // Start
-    label.textContent = "Starting...";
-    btn.className = "server-toggle starting";
-    const result = await sendMessage({ action: "start-server" });
+  label.textContent = "Downloading...";
+  btn.className = "server-toggle starting";
+  btn.style.pointerEvents = "none";
+
+  try {
+    const result = await sendMessage({ action: "tts-init" });
     if (result && result.ok) {
-      await checkServer();
-    } else {
-      const errorMsg = result?.error || "Could not start server";
-      // Check if native messaging host not installed
-      if (errorMsg.includes("not found") || errorMsg.includes("native messaging host") || errorMsg.includes("forbidden")) {
-        label.textContent = "Not set up";
-        btn.title = "Run install_host.sh first — see README";
-        showStatus("Native host not found — run install_host.sh with your extension ID", "error");
-      } else {
-        label.textContent = "Error";
-        btn.title = errorMsg;
-        showStatus(errorMsg, "error");
+      await checkModel();
+      // Reload voices now that model is ready
+      const voiceData = await sendMessage({ action: "get-voices" });
+      const settings = await sendMessage({ action: "get-settings" });
+      const select = document.getElementById("voice-select");
+      if (voiceData.voices && voiceData.voices.length > 0) {
+        select.innerHTML = "";
+        voiceData.voices.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          if (v === settings.voice) opt.selected = true;
+          select.appendChild(opt);
+        });
       }
+    } else {
+      label.textContent = "Error";
       btn.className = "server-toggle offline";
-      setTimeout(() => checkServer(), 3000);
+      showStatus(result?.error || "Failed to load model", "error");
     }
+  } catch (err) {
+    label.textContent = "Error";
+    btn.className = "server-toggle offline";
+    showStatus(err.message || "Failed to load model", "error");
+  } finally {
+    btn.style.pointerEvents = "";
   }
 });
 

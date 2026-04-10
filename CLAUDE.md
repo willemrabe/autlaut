@@ -4,9 +4,20 @@ Browser extension for text-to-speech using Kokoro TTS.
 
 ## Architecture
 
-- `extension/popup.html` / `popup.css` / `popup.js` — Extension popup (settings, history)
+- `extension/offscreen.html` / `offscreen.js` — Offscreen document (kokoro-js TTS engine, ONNX Runtime WASM)
+- `extension/background.js` — Service worker (message routing, offscreen lifecycle)
+- `extension/popup.html` / `popup.css` / `popup.js` — Extension popup (settings, history, model status)
 - `extension/content.js` / `content.css` — Content script (FAB, player, highlighting)
 - `extension/lib/storage.js` — Storage utilities
+- `build.js` — esbuild config, bundles offscreen.js and copies static files to `dist/`
+
+## Build
+
+```bash
+npm install && npm run build
+```
+
+Load `dist/` as unpacked extension in Chrome.
 
 ## Design Tokens
 

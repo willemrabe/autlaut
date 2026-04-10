@@ -37,11 +37,11 @@ const KokoroStorage = {
     const data = await chrome.storage.local.get("settings");
     return Object.assign(
       {
-        serverUrl: "http://localhost:8787",
-        voice: "af_heart",
+        voice: "bm_daniel",
         speed: 1.0,
         playbackSpeed: 1.0,
         volume: 1.0,
+        workers: 2,
       },
       data.settings || {}
     );

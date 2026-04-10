@@ -1,21 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Autlaut",
-  "version": "1.0.0",
-  "description": "Select text on any page and listen to it with Kokoro-82M TTS. Includes playback highlighting and history.",
+  "version": "2.0.0",
+  "description": "Select text on any page and listen to it with Kokoro TTS. Runs entirely in-browser — no server needed.",
   "permissions": [
     "activeTab",
     "storage",
     "contextMenus",
-    "nativeMessaging"
+    "offscreen"
   ],
-  "host_permissions": [
-    "http://localhost:8787/*"
-  ],
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -38,5 +34,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/*.wasm", "lib/*.mjs"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

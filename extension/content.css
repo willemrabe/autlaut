@@ -48,15 +48,133 @@
 
 #kokoro-fab.loading {
   pointer-events: none;
+  opacity: 0 !important;
+  transform: scale(0) !important;
 }
 
-#kokoro-fab.loading svg {
-  animation: kokoro-spin 1s linear infinite;
+/* Round pill-clock spinner — replaces FAB while loading */
+.kokoro-fab-loader {
+  position: absolute;
+  z-index: 2147483647;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #1a1a2e;
+  border: 1px solid rgba(255, 107, 74, 0.18);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(255, 107, 74, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-@keyframes kokoro-spin {
+.kokoro-fab-loader.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Container for the clock-face pills */
+.kokoro-fab-loader-ring {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  animation: kokoro-ring-rotate 6s linear infinite;
+}
+
+@keyframes kokoro-ring-rotate {
   to { transform: rotate(360deg); }
 }
+
+/* Each pill is positioned like an hour marker, radiating outward from center */
+.kokoro-fab-loader-pill {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 1.5px;
+  /* transform-origin stays at the pill center; we use translate to push outward */
+  animation: kokoro-pill-pulse var(--pill-dur) ease-in-out infinite;
+  animation-delay: var(--pill-delay);
+}
+
+/* Position each pill at its clock angle, translated outward so center stays empty */
+.kokoro-fab-loader-pill:nth-child(1) {
+  --pill-dur: 1.8s; --pill-delay: 0s;
+  height: 7px; margin-top: -3.5px;
+  transform: rotate(0deg) translateY(-9px);
+  background: #ff6b4a;
+  box-shadow: 0 0 5px rgba(255, 107, 74, 0.5);
+}
+.kokoro-fab-loader-pill:nth-child(2) {
+  --pill-dur: 2.2s; --pill-delay: -0.25s;
+  height: 6px; margin-top: -3px;
+  transform: rotate(45deg) translateY(-9px);
+  background: #ff8a6a;
+  box-shadow: 0 0 5px rgba(255, 138, 106, 0.4);
+}
+.kokoro-fab-loader-pill:nth-child(3) {
+  --pill-dur: 2.0s; --pill-delay: -0.5s;
+  height: 8px; margin-top: -4px;
+  transform: rotate(90deg) translateY(-8px);
+  background: #f472b6;
+  box-shadow: 0 0 5px rgba(244, 114, 182, 0.5);
+}
+.kokoro-fab-loader-pill:nth-child(4) {
+  --pill-dur: 2.4s; --pill-delay: -0.75s;
+  height: 5px; margin-top: -2.5px;
+  transform: rotate(135deg) translateY(-9px);
+  background: #c084fc;
+  box-shadow: 0 0 5px rgba(192, 132, 252, 0.4);
+}
+.kokoro-fab-loader-pill:nth-child(5) {
+  --pill-dur: 1.6s; --pill-delay: -1.0s;
+  height: 7px; margin-top: -3.5px;
+  transform: rotate(180deg) translateY(-9px);
+  background: #a855f7;
+  box-shadow: 0 0 5px rgba(168, 85, 247, 0.5);
+}
+.kokoro-fab-loader-pill:nth-child(6) {
+  --pill-dur: 2.1s; --pill-delay: -1.25s;
+  height: 6px; margin-top: -3px;
+  transform: rotate(225deg) translateY(-9px);
+  background: #818cf8;
+  box-shadow: 0 0 5px rgba(129, 140, 248, 0.4);
+}
+.kokoro-fab-loader-pill:nth-child(7) {
+  --pill-dur: 1.9s; --pill-delay: -1.5s;
+  height: 8px; margin-top: -4px;
+  transform: rotate(270deg) translateY(-8px);
+  background: #6366f1;
+  box-shadow: 0 0 5px rgba(99, 102, 241, 0.5);
+}
+.kokoro-fab-loader-pill:nth-child(8) {
+  --pill-dur: 2.3s; --pill-delay: -1.75s;
+  height: 5px; margin-top: -2.5px;
+  transform: rotate(315deg) translateY(-9px);
+  background: #f472b6;
+  box-shadow: 0 0 5px rgba(244, 114, 182, 0.4);
+}
+
+@keyframes kokoro-pill-pulse {
+  0%, 100% { opacity: 0.3; transform: var(--_base) scaleY(0.7); }
+  50% { opacity: 1; transform: var(--_base) scaleY(1.3); }
+}
+
+/* Override the pulse animation to preserve each pill's base rotation+translate */
+.kokoro-fab-loader-pill:nth-child(1) { --_base: rotate(0deg) translateY(-9px); }
+.kokoro-fab-loader-pill:nth-child(2) { --_base: rotate(45deg) translateY(-9px); }
+.kokoro-fab-loader-pill:nth-child(3) { --_base: rotate(90deg) translateY(-8px); }
+.kokoro-fab-loader-pill:nth-child(4) { --_base: rotate(135deg) translateY(-9px); }
+.kokoro-fab-loader-pill:nth-child(5) { --_base: rotate(180deg) translateY(-9px); }
+.kokoro-fab-loader-pill:nth-child(6) { --_base: rotate(225deg) translateY(-9px); }
+.kokoro-fab-loader-pill:nth-child(7) { --_base: rotate(270deg) translateY(-8px); }
+.kokoro-fab-loader-pill:nth-child(8) { --_base: rotate(315deg) translateY(-9px); }
 
 /* Mini player bar */
 #kokoro-player {
@@ -315,7 +433,7 @@
 /* Progress overlay */
 #kokoro-progress {
   position: fixed;
-  bottom: 16px;
+  bottom: 76px;
   right: 16px;
   z-index: 2147483646;
   background: #1a1a2e;
@@ -448,6 +566,14 @@
   color: #ccc;
   text-align: center;
   letter-spacing: 0.3px;
+}
+
+.kokoro-prog-stats {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
 }
 
 .kokoro-prog-cancel {

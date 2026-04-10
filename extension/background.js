@@ -1,8 +1,6 @@
 /* Autlaut — Background Service Worker */
 importScripts("lib/storage.js");
 
-const NATIVE_HOST = "com.autlaut.tts";
-
 // Context menu setup
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -21,32 +19,58 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-// --- Native messaging helpers ---
+// --- Offscreen document management ---
 
-function nativeMessage(msg) {
-  return new Promise((resolve) => {
-    chrome.runtime.sendNativeMessage(NATIVE_HOST, msg, (resp) => {
-      if (chrome.runtime.lastError) {
-        resolve({ ok: false, error: chrome.runtime.lastError.message });
-      } else {
-        resolve(resp || { ok: false, error: "No response" });
-      }
+let offscreenReady = false;
+
+async function ensureOffscreen() {
+  if (offscreenReady) {
+    // Verify it still exists
+    const exists = await chrome.offscreen.hasDocument();
+    if (exists) return;
+    offscreenReady = false;
+  }
+
+  try {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["WORKERS"],
+      justification: "Kokoro TTS inference via ONNX Runtime WebAssembly",
     });
-  });
+    offscreenReady = true;
+  } catch (err) {
+    // Already exists (race condition)
+    if (err.message?.includes("Only a single offscreen")) {
+      offscreenReady = true;
+    } else {
+      throw err;
+    }
+  }
 }
 
-async function ensureServer(url) {
-  // Already running? Nothing to do.
-  const health = await checkServer(url);
-  if (health.ok) return { ok: true, status: "already_running" };
-
-  // Try to start via native messaging host
-  const result = await nativeMessage({ action: "start" });
-  return result;
+async function sendToOffscreen(msg) {
+  await ensureOffscreen();
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { target: "offscreen", ...msg },
+      (resp) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (resp && resp.error) {
+          reject(new Error(resp.error));
+        } else {
+          resolve(resp || {});
+        }
+      }
+    );
+  });
 }
 
 // Message handler
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Ignore messages meant for offscreen
+  if (msg.target === "offscreen") return;
+
   if (msg.action === "save-history") {
     saveHistory(msg, sender.tab).then(sendResponse).catch((err) =>
       sendResponse({ error: err.message })
@@ -101,147 +125,86 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.action === "check-server") {
-    checkServer(msg.url).then(sendResponse);
+  // --- Model status (replaces server check) ---
+
+  if (msg.action === "check-server" || msg.action === "model-status") {
+    sendToOffscreen({ action: "model-status" })
+      .then((status) => sendResponse({ ok: status.ready, loading: status.loading }))
+      .catch(() => sendResponse({ ok: false }));
     return true;
   }
 
   if (msg.action === "get-voices") {
-    fetchVoices(msg.url).then(sendResponse);
+    sendToOffscreen({ action: "get-voices" })
+      .then(sendResponse)
+      .catch(() => sendResponse({ voices: [] }));
     return true;
   }
 
-  // --- Server lifecycle (native messaging) ---
+  // --- Model init (replaces server start/stop) ---
 
-  if (msg.action === "start-server") {
-    KokoroStorage.getSettings().then((s) => ensureServer(s.serverUrl)).then(sendResponse).catch((err) =>
-      sendResponse({ ok: false, error: err.message })
-    );
+  if (msg.action === "start-server" || msg.action === "tts-init") {
+    KokoroStorage.getSettings().then((s) =>
+      sendToOffscreen({ action: "tts-init", workers: s.workers || 2 })
+    ).then(() => sendResponse({ ok: true, status: "ready" }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
   if (msg.action === "stop-server") {
-    nativeMessage({ action: "stop" }).then(sendResponse);
+    // No-op — model stays loaded in offscreen document
+    sendResponse({ ok: true });
     return true;
   }
 
-  // --- TTS (auto-start server if needed) ---
+  // --- TTS ---
 
   if (msg.action === "tts-prepare") {
-    (async () => {
-      const settings = await KokoroStorage.getSettings();
-      const server = await ensureServer(settings.serverUrl);
-      if (!server.ok) throw new Error(server.error || "Server failed to start");
-      return ttsPrepare(msg);
-    })().then(sendResponse).catch((err) =>
-      sendResponse({ error: err.message })
-    );
+    sendToOffscreen({ action: "tts-prepare", text: msg.text })
+      .then(sendResponse)
+      .catch((err) => sendResponse({ error: err.message }));
     return true;
   }
 
   if (msg.action === "tts-chunk") {
-    ttsChunk(msg).then(sendResponse).catch((err) =>
+    (async () => {
+      const settings = await KokoroStorage.getSettings();
+      return sendToOffscreen({
+        action: "tts-chunk",
+        text: msg.text,
+        voice: settings.voice,
+        speed: settings.speed,
+        index: msg.index,
+        workers: settings.workers || 2,
+      });
+    })().then(sendResponse).catch((err) =>
       sendResponse({ error: err.message })
     );
     return true;
   }
 
   if (msg.action === "tts-preview") {
-    (async () => {
-      const settings = await KokoroStorage.getSettings();
-      const server = await ensureServer(settings.serverUrl);
-      if (!server.ok) throw new Error(server.error || "Server failed to start");
-      return ttsPreview(msg);
-    })().then(sendResponse).catch((err) =>
+    sendToOffscreen({
+      action: "tts-preview",
+      voice: msg.voice,
+      speed: msg.speed,
+    }).then(sendResponse).catch((err) =>
       sendResponse({ error: err.message })
     );
     return true;
   }
+
+  // --- Model progress relay ---
+
+  if (msg.action === "model-progress") {
+    // Relay progress to any listening tabs/popup
+    chrome.runtime.sendMessage({
+      action: "model-progress",
+      progress: msg.progress,
+    }).catch(() => {});
+    return false;
+  }
 });
-
-async function checkServer(url) {
-  try {
-    const resp = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
-    if (!resp.ok) return { ok: false };
-    const data = await resp.json();
-    return { ok: data.status === "ok" };
-  } catch {
-    return { ok: false };
-  }
-}
-
-async function fetchVoices(url) {
-  try {
-    const resp = await fetch(`${url}/voices`, { signal: AbortSignal.timeout(5000) });
-    if (!resp.ok) return { voices: [] };
-    return await resp.json();
-  } catch {
-    return { voices: [] };
-  }
-}
-
-async function ttsPrepare(msg) {
-  const settings = await KokoroStorage.getSettings();
-  const resp = await fetch(`${settings.serverUrl}/tts/prepare`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: msg.text }),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
-  return await resp.json();
-}
-
-async function ttsChunk(msg) {
-  const settings = await KokoroStorage.getSettings();
-  const resp = await fetch(`${settings.serverUrl}/tts/chunk`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: msg.text,
-      voice: settings.voice,
-      speed: settings.speed,
-      index: msg.index,
-    }),
-    signal: AbortSignal.timeout(60000),
-  });
-  if (!resp.ok) throw new Error(`Chunk ${msg.index} failed: ${resp.status}`);
-
-  const duration = parseFloat(resp.headers.get("X-Chunk-Duration") || "0");
-  const buffer = await resp.arrayBuffer();
-  // Convert to base64 data URL to pass through messaging
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const dataUrl = "data:audio/wav;base64," + btoa(binary);
-
-  return { dataUrl, duration, index: msg.index };
-}
-
-const PREVIEW_TEXT = "The quick brown fox jumps over the lazy dog. How vexingly quick daft zebras jump!";
-
-async function ttsPreview(msg) {
-  const settings = await KokoroStorage.getSettings();
-  const resp = await fetch(`${settings.serverUrl}/tts/chunk`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: PREVIEW_TEXT,
-      voice: msg.voice,
-      speed: msg.speed,
-      index: 0,
-    }),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!resp.ok) throw new Error(`Preview failed: ${resp.status}`);
-
-  const buffer = await resp.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const dataUrl = "data:audio/wav;base64," + btoa(binary);
-  return { dataUrl };
-}
 
 async function saveHistory(msg, tab) {
   const entry = {

@@ -8,9 +8,9 @@
   <header>
     <div class="header-row">
       <h1>Autlaut</h1>
-      <button id="server-toggle" class="server-toggle offline" title="Server offline" role="status" aria-label="Server status: offline">
+      <button id="model-toggle" class="server-toggle offline" title="Model not loaded" role="status" aria-label="Model status: not loaded">
         <span class="dot"></span>
-        <span class="server-label">Offline</span>
+        <span class="server-label">Not loaded</span>
       </button>
     </div>
     <nav aria-label="Main">
@@ -37,10 +37,6 @@
         <fieldset>
           <legend class="sr-only">TTS Settings</legend>
           <div class="setting-group">
-            <label for="server-url">Server URL</label>
-            <input type="text" id="server-url" placeholder="http://localhost:8787">
-          </div>
-          <div class="setting-group">
             <label for="voice-select">Voice</label>
             <div class="voice-row">
               <select id="voice-select">
@@ -55,6 +51,14 @@
           <div class="setting-group">
             <label for="speed-range">Speed: <span id="speed-value">1.0x</span></label>
             <input type="range" id="speed-range" min="0.5" max="2" step="0.25" value="1">
+          </div>
+          <div class="setting-group">
+            <label for="workers-select">Parallel workers</label>
+            <select id="workers-select">
+              <option value="2">2 (default)</option>
+              <option value="3">3 (faster, more memory)</option>
+              <option value="4">4 (fastest, most memory)</option>
+            </select>
           </div>
           <button type="button" id="save-settings-btn" class="primary-btn">Save Settings</button>
           <p id="settings-status" class="status-msg" aria-live="polite"></p>
